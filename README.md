@@ -1,2 +1,4 @@
 GroovyCodeCoverage
 ==================
+
+Hello
