@@ -1,0 +1,93 @@
+<?xml version="1.0"?>
+<project name="sample" default="coverage-report" basedir=".">
+    <!-- properties for project directory structure -->
+    <property name="dir.src" value="src"/>
+    <property name="dir.build" value="build"/>
+    <property name="dir.dist" value="dist"/>
+    <property name="dir.lib" value="lib"/>
+    <property name="dir.report" value="report"/>
+
+    <!-- setup a project classpath that includes the external libs -->
+    <path id="project.classpath">
+        <!-- include the classes in this project -->
+        <pathelement location="${dir.build}"/>
+        <!-- include external libraries -->
+        <fileset dir="${dir.lib}" includes="**/*.jar"/>
+    </path>
+
+    <!-- add external tasks -->
+    <taskdef name="groovyc" classpathref="project.classpath" classname="org.codehaus.groovy.ant.Groovyc"/>
+    <taskdef name="groovy" classpathref="project.classpath" classname="org.codehaus.groovy.ant.Groovy"/>
+
+    <!-- create output directories -->
+    <target name="prepare" depends="clean">
+        <mkdir dir="${dir.build}"/>
+    </target>
+
+    <!-- clean -->
+    <target name="clean" description="Remove all generated files.">
+        <delete dir="${dir.build}"/>
+        <delete dir="${dir.report}"/>
+        <delete dir="target/instrumented-classes"/>
+        <delete file="cobertura.ser"/>
+    </target>
+
+    <!-- compile java (if you have any) and groovy source -->
+    <target name="runGroovyC" depends="prepare">
+        <groovyc srcdir="${dir.src}" destdir="${dir.build}" stacktrace="true">
+            <classpath refid="project.classpath"/>
+            <javac debug="on"/>
+        </groovyc>
+
+    </target>
+
+    <!--============================================-->
+    <!-- Cobertura Test Coverage Tool -->
+    <!--============================================-->
+    <path id="cobertura.classpath">
+        <fileset dir="${dir.lib}/cobertura" includes="**/*.jar"/>
+        <pathelement location="target/instrumented-classes"/>
+        <pathelement location="${dir.src}"/>
+    </path>
+
+    <taskdef classpath="${dir.lib}/cobertura/cobertura.jar" resource="tasks.properties"
+             classpathref="cobertura.classpath"/>
+
+    <!-- adds the logging code to the already compiled class files -->
+    <target name="instrument" depends="runGroovyC">
+        <delete quiet="false" failonerror="false">
+            <fileset dir="target/instrumented-classes" includes="**/*.class"/>
+        </delete>
+        <cobertura-instrument todir="target/instrumented-classes">
+            <fileset dir="${dir.build}">
+                <include name="**/*.class"/>
+                <exclude name="**/*Test.class"/>
+            </fileset>
+        </cobertura-instrument>
+    </target>
+
+    <!-- setup class path to include instrumented classes before non-instrumented ones -->
+    <path id="cover-test.classpath">
+        <fileset dir="${dir.lib}" includes="**/*.jar"/>
+        <pathelement location="target/instrumented-classes"/>
+        <pathelement location="${dir.build}"/>
+    </path>
+
+    <!-- run all my junit tests using the instrumented classes -->
+    <target name="cover-test" depends="instrument">
+        <mkdir dir="${dir.report}/cobertura"/>
+        <junit printsummary="yes" haltonerror="no" haltonfailure="no" fork="yes">
+            <formatter type="plain" usefile="true"/>
+            <batchtest>
+                <fileset dir="${dir.build}" includes="**/*Test.class"/>
+            </batchtest>
+            <classpath refid="cover-test.classpath"/>
+        </junit>
+    </target>
+
+    <!-- create the html reports -->
+    <target name="coverage-report" depends="cover-test">
+        <cobertura-report srcdir="${dir.src}" destdir="${dir.report}"/>
+    </target>
+</project>
+
